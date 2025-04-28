@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     id("kotlin-kapt")
+    id("maven-publish")
 }
 
 android {
@@ -99,4 +100,21 @@ dependencies {
     // workManager
     // Kotlin + coroutines
     implementation("androidx.work:work-runtime-ktx:$work_version")
+}
+afterEvaluate {
+    publishing {
+        publications {
+            register<MavenPublication>("release") {
+                from(components["release"])
+                groupId = "com.github.SAKAKCorp"
+                artifactId = "candiy-android"
+                version = "0.1.0"
+
+                pom {
+                    name.set("candiyHC")
+                    description.set("This is an SDK that helps you easily integrate and manage Android Health Connect data in your application.")
+                }
+            }
+        }
+    }
 }
