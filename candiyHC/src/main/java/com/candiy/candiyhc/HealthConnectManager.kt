@@ -25,7 +25,7 @@ import java.util.concurrent.TimeUnit
 
 
 
-class HealthConnectManager(private val context: Context) {
+class HealthConnectManager(val context: Context) {
     val healthConnectClient = HealthConnectClient.getOrCreate(context)
 
 
