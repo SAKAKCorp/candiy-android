@@ -27,7 +27,7 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
     val appContainer = AppContainer(applicationContext)
     val healthDataRepository = appContainer.itemsRepository
     val userRepository = appContainer.userRepository
-    private val apiService = ApiClient.apiService
+    private val apiService = ApiClient.getApiService()
 
     override suspend fun doWork(): Result {
         // UserManager에서 endUserId 가져오기

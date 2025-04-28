@@ -15,7 +15,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.candiy.candiyhc.data.enums.Connections
 import com.candiy.candiyhc.data.enums.DataTypes
-import com.candiy.candiyhc.network.ApiClient.apiService
+import com.candiy.candiyhc.network.ApiClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -123,7 +123,7 @@ class HealthConnectManager(val context: Context) {
 
     fun syncHealthData(type: Connections, dataTypes: Set<DataTypes>, endUserId: String, apiKey: String) {
         Log.d("candiyHC", "Starting real-time data streaming for type: $type with data types: $dataTypes")
-        val userManager = UserManager(apiService, context)
+        val userManager = UserManager(ApiClient.getApiService(), context)
 
         // apiKey가 유효한지 먼저 확인
         if (!apiKey.isNullOrEmpty()) {
