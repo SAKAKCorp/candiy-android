@@ -8,5 +8,9 @@ data class HealthDataUploadRequest(
     val data: String,
     val start: String,
     val end: String? = null,
+
+    @Json(name = "last_modified_time")
+    val lastModifiedTime: String,
+
     @Json(name = "data_id")val dataId: String
 )

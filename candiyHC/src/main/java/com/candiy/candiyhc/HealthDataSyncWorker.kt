@@ -110,8 +110,9 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
                             app = it.app,
                             data = it.data,
                             start = it.start,
-                            end = null,
-                            dataId = it.metadataId
+                            end = it.end,
+                            dataId = it.metadataId,
+                            lastModifiedTime = it.lastModifiedTime.toString(),
                         )
                     }
 
