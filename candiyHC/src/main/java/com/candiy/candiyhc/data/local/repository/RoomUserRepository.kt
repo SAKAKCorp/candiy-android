@@ -24,4 +24,8 @@ class RoomUserRepository(private val userDao: UserDao) : UserRepository {
     override suspend fun getUserByEndUserId(endUserId: String): UserEntity? {
         return userDao.getUserByEndUserId(endUserId)
     }
+
+    override suspend fun updateLastSyncedAt(endUserId: String, lastSyncedAt: String) {
+        userDao.updateLastSyncedAt(endUserId, lastSyncedAt)
+    }
 }

@@ -8,4 +8,6 @@ interface UserRepository {
     suspend fun deleteUser(user: UserEntity)
     suspend fun getUserById(id: Long): UserEntity?
     suspend fun getUserByEndUserId(endUserId: String): UserEntity?
+    suspend fun updateLastSyncedAt(endUserId: String, lastSyncedAt: String)
+
 }

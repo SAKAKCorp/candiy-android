@@ -25,4 +25,7 @@ interface UserDao {
     @Query("SELECT * FROM user WHERE end_user_id = :endUserId LIMIT 1")
     suspend fun getUserByEndUserId(endUserId: String): UserEntity?
 
+    @Query("UPDATE user SET last_synced_at = :lastSyncedAt WHERE end_user_id = :endUserId")
+    suspend fun updateLastSyncedAt(endUserId: String, lastSyncedAt: String)
+
 }

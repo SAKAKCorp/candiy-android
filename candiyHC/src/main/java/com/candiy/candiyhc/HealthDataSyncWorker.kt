@@ -150,6 +150,7 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
                             System.currentTimeMillis(),
                             userId
                         )
+                        userRepository.updateLastSyncedAt(endUserId, Instant.now().toString())
                         Log.d("Upload", "$type uploaded successfully")
                     } else {
                         Log.e("Upload", "$type upload failed: ${response.errorBody()?.string()}")
