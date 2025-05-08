@@ -33,19 +33,21 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
         // UserManager에서 endUserId 가져오기
         val userManager = UserManager(apiService, applicationContext)  // applicationContext 사용
         val endUserId = userManager.getEndUserId()
+        val deviceModel = userManager.getDeviceModel()
 
         // endUserId가 null인 경우 early return
         if (endUserId == null) {
             Log.e("HealthWorker", "endUserId is null, aborting work.")
             return Result.failure()
         }
-        val user = userRepository.getUserByEndUserId(endUserId)
+        val user = userRepository.getUserByEndUserIdAndDeviceModel(endUserId, deviceModel)
         val userId = user?.id
+        Log.d("user id??", "${userId}")
         if (userId == null) {
             Log.e("HealthWorker", "userId is null, aborting work.")
             return Result.failure()
         }
-        Log.d("HealthWorker", "endUserId: ${endUserId}, userId: ${userId}")
+        Log.d("HealthWorker", "endUserId: ${endUserId}, userId: ${userId}, device: ${deviceModel}")
 
         val dataTypes = inputData.getStringArray("data_types")?.mapNotNull {
             try {
@@ -116,6 +118,7 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
                         )
                     }
 
+                    // TODO: deviceModel 및 manufacturer 정보 포함하여 서버에 업로드 요청에 추가하기
                     val response = when (type) {
                         DataTypes.STEPS -> {
                             val body = StepListWrapper(steps = requests)

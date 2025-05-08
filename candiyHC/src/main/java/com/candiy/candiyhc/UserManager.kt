@@ -25,13 +25,24 @@ class UserManager(
         return prefs.getString("end_user_id", null)
     }
 
-    suspend fun getOrCreateUserToken(): String {
+    // deviceModel 저장 및 불러오기 추가
+    fun setDeviceModel(deviceModel: String) {
+        prefs.edit().putString("device_model", deviceModel).apply()
+    }
+
+    fun getDeviceModel(): String? {
+        return prefs.getString("device_model", null)
+    }
+
+    suspend fun getOrCreateUserToken(deviceManufacturer: String): String {
         var uid: String? = null
         var secret: String? = null
         val endUserId = getEndUserId() ?: throw IllegalArgumentException("end_user_id is not set")
+        val deviceModel = getDeviceModel() ?: throw IllegalArgumentException("device_model is not set")
 
 
-        val response = apiService.getUserOauthInfo(endUserId)
+        // TODO: 서버 조회 시 endUserId & deviceAddress
+        val response = apiService.getUserOauthInfo(endUserId) // 서버에 유저 있는 지 확인
         Log.d("candiyHC", "getUserOauthInfo response: ${response}")
 
         if (response.isSuccessful){
@@ -42,7 +53,7 @@ class UserManager(
                 uid = userInfo?.uid
                 secret = userInfo?.secret
 
-                saveUserToLocalDb() // room db에 데이터 저장
+                saveUserToLocalDb(deviceManufacturer, deviceModel) // room db에 데이터 저장
             } else {
                 val errorMessage = body?.message ?: "Unknown error"
                 Log.e("UserError", "Error: $errorMessage")
@@ -59,7 +70,7 @@ class UserManager(
                     uid = userInfo?.uid
                     secret = userInfo?.secret
 
-                    saveUserToLocalDb()
+                    saveUserToLocalDb(deviceManufacturer, deviceModel)
                     Log.d("teset", "saveUserToLocalDb")
                 } else {
                     val errorMessage = body?.message ?: "Unknown error"
@@ -78,11 +89,11 @@ class UserManager(
         return token
     }
 
-    private suspend fun saveUserToLocalDb() {
+    private suspend fun saveUserToLocalDb(deviceManufacturer: String, deviceModel: String) {
         val endUserId = getEndUserId() ?: throw IllegalArgumentException("end_user_id is not set")
 
         // 먼저 endUserId로 이미 존재하는 유저가 있는지 확인
-        val existingUser = userDao.getUserByEndUserId(endUserId)
+        val existingUser = userDao.getUserByEndUserIdAndDeviceModel(endUserId, deviceModel)
 
         if (existingUser != null) {
             // 이미 존재하는 경우
@@ -91,7 +102,8 @@ class UserManager(
             // 존재하지 않으면 새로 저장
             val entity = UserEntity(
                 endUserId = endUserId,
-                lastSyncedAt = null
+                deviceManufacturer = deviceManufacturer,
+                deviceModel = deviceModel,
             )
             userDao.insert(entity)
             Log.d("UserRegistrar", "User saved to local DB with userId: $endUserId")

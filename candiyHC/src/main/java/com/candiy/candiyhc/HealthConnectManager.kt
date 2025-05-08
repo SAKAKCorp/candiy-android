@@ -1,7 +1,18 @@
 package com.candiy.candiyhc
 
+import android.Manifest
+import android.app.Activity
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothManager
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresPermission
+import androidx.appcompat.app.AppCompatActivity.BLUETOOTH_SERVICE
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import androidx.core.content.ContextCompat.getSystemService
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.request.ReadRecordsRequest
@@ -13,6 +24,7 @@ import androidx.health.connect.client.request.AggregateRequest
 import androidx.work.Data
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.candiy.candiyhc.data.di.AppContainer
 import com.candiy.candiyhc.data.enums.Connections
 import com.candiy.candiyhc.data.enums.DataTypes
 import com.candiy.candiyhc.network.ApiClient
@@ -27,7 +39,9 @@ import java.util.concurrent.TimeUnit
 
 class HealthConnectManager(val context: Context) {
     val healthConnectClient = HealthConnectClient.getOrCreate(context)
-
+    private val REQUEST_BLUETOOTH_PERMISSION = 1001  // 권한 요청 코드
+    val appContainer = AppContainer(context.applicationContext)
+    val userRepository = appContainer.userRepository
 
     // candiyHC 초기화 메소드
     fun initConnection(
@@ -36,6 +50,24 @@ class HealthConnectManager(val context: Context) {
         Log.d("candiyHC", "Initializing candiyHC SDK")
         onResult(true)
     }
+
+    fun checkBluetoothPermission(context: Context, onPermissionGranted: () -> Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED
+        ) {
+            // 권한이 없는 경우 권한 요청
+            ActivityCompat.requestPermissions(
+                context as Activity,
+                arrayOf(Manifest.permission.BLUETOOTH_CONNECT),
+                REQUEST_BLUETOOTH_PERMISSION
+            )
+        } else {
+            // 권한이 이미 있는 경우 바로 콜백 실행
+            onPermissionGranted()
+        }
+    }
+
+
 
     // BLE 장치 스캔 시작
     fun startDeviceScan(type: Connections, onResult: (Boolean) -> Unit) {
@@ -121,7 +153,7 @@ class HealthConnectManager(val context: Context) {
         WorkManager.getInstance(context).enqueue(workRequest)
     }
 
-    fun syncHealthData(type: Connections, dataTypes: Set<DataTypes>, endUserId: String, apiKey: String) {
+    fun syncHealthData(type: Connections, dataTypes: Set<DataTypes>, apiKey: String, endUserId: String, deviceManufacturer: String, deviceModel: String) {
         Log.d("candiyHC", "Starting real-time data streaming for type: $type with data types: $dataTypes")
         val userManager = UserManager(ApiClient.getApiService(), context)
 
@@ -134,9 +166,10 @@ class HealthConnectManager(val context: Context) {
                 try {
                     // endUserId를 UserManager에 저장
                     userManager.setEndUserId(endUserId)
+                    userManager.setDeviceModel(deviceModel)
 
                     // token을 가져와서 작업 시작
-                    val token = userManager.getOrCreateUserToken().toString()
+                    val token = userManager.getOrCreateUserToken(deviceManufacturer).toString()
                     Log.d("Token", "Fetched token: $token")
 
                     if (type == Connections.BLE) {
