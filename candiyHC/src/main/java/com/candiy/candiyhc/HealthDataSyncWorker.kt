@@ -11,13 +11,19 @@ import androidx.work.WorkerParameters
 import com.candiy.candiyhc.data.di.AppContainer
 import com.candiy.candiyhc.data.enums.DataTypes
 import com.candiy.candiyhc.data.local.entity.HealthDataEntity
+import com.candiy.candiyhc.data.local.model.HeartRateData
+import com.candiy.candiyhc.data.local.model.HeartRateSample
+import com.candiy.candiyhc.data.local.model.StepData
 import com.candiy.candiyhc.network.model.request.HealthDataUploadRequest
 import com.candiy.candiyhc.network.ApiClient
 import com.candiy.candiyhc.network.ApiClient.moshi
-import com.candiy.candiyhc.network.HeartRateListWrapper
-import com.candiy.candiyhc.network.OxygenSaturationListWrapper
-import com.candiy.candiyhc.network.SleepListWrapper
-import com.candiy.candiyhc.network.StepListWrapper
+import com.candiy.candiyhc.network.uploader.HealthDataUploader
+import com.candiy.candiyhc.network.uploader.strategy.HeartRateUploadStrategy
+import com.candiy.candiyhc.network.uploader.strategy.OxygenSaturationUploadStrategy
+import com.candiy.candiyhc.network.uploader.strategy.SleepUploadStrategy
+import com.candiy.candiyhc.network.uploader.strategy.StepUploadStrategy
+import com.squareup.moshi.JsonAdapter
+import com.squareup.moshi.Types
 import java.time.Instant
 
 class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
@@ -27,7 +33,7 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
     val appContainer = AppContainer(applicationContext)
     val healthDataRepository = appContainer.itemsRepository
     val userRepository = appContainer.userRepository
-    private val apiService = ApiClient.getApiService()
+    private val apiService = ApiClient.getApiService(context)
 
     override suspend fun doWork(): Result {
         // UserManager에서 endUserId 가져오기
@@ -68,7 +74,7 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
         return try {
             Log.d("HealthWorker", "doWork() called at ${System.currentTimeMillis()}")
 
-            // 각 타입에 맞는 데이터를 처리
+            // 각 타입에 맞는 데이터를 처리(Room DB에 저장)
             val actions = mapOf(
                 DataTypes.STEPS to suspend {
                     val steps = healthConnectManager.readStepCounts()
@@ -103,61 +109,58 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
             if (pendingData.isNotEmpty()) {
                 val authorizationHeader = "Bearer $token"
 
-                dataTypes.forEach { type ->
+                for (type in dataTypes) {
                     val filteredData =
                         pendingData.filter { DataTypes.valueOf(it.type.uppercase()) == type }
-
+                    val type2 = Types.newParameterizedType(
+                        Map::class.java,
+                        String::class.java,
+                        Any::class.java
+                    )
+                    val jsonAdapter: JsonAdapter<Map<String, Any>> = moshi.adapter(type2)
                     val requests = filteredData.map {
+                        val parsedData: Map<String, Any> = jsonAdapter.fromJson(it.data) ?: emptyMap()
+
                         HealthDataUploadRequest(
                             app = it.app,
-                            data = it.data,
+                            data = parsedData,
                             start = it.start,
                             end = it.end,
                             dataId = it.metadataId,
                             lastModifiedTime = it.lastModifiedTime.toString(),
                         )
+
                     }
+                    Log.d("requests", "${requests}")
 
                     // TODO: deviceModel 및 manufacturer 정보 포함하여 서버에 업로드 요청에 추가하기
-                    val response = when (type) {
-                        DataTypes.STEPS -> {
-                            val body = StepListWrapper(steps = requests)
-                            apiService.uploadStepHealthData(authorizationHeader, body)
-                        }
-
-                        DataTypes.HEART_RATE -> {
-                            val body = HeartRateListWrapper(heartRates = requests)
-                            apiService.uploadHeartRateData(authorizationHeader, body)
-                        }
-
-                        DataTypes.OXYGEN_SATURATION -> {
-                            val body = OxygenSaturationListWrapper(oxygenSaturations = requests)
-                            apiService.uploadOxygenSaturationData(authorizationHeader, body)
-                        }
-
-                        DataTypes.SLEEP -> {
-                            val body = SleepListWrapper(sleeps = requests)
-                            apiService.uploadSleepData(authorizationHeader, body)
-                        }
-
+                    // Strategy 선택
+                    val strategy = when (type) {
+                        DataTypes.STEPS -> StepUploadStrategy(apiService)
+                        DataTypes.HEART_RATE -> HeartRateUploadStrategy(apiService)
+                        DataTypes.SLEEP -> SleepUploadStrategy(apiService)
+                        DataTypes.OXYGEN_SATURATION -> OxygenSaturationUploadStrategy(apiService)
                         else -> {
                             Log.w("Uploader", "Unsupported data type: $type")
-                            return@forEach
+                            continue
                         }
                     }
 
-
-                    if (response.isSuccessful) {
-                        healthDataRepository.markAsUploaded(
-                            filteredData.map { it.metadataId },
-                            System.currentTimeMillis(),
-                            userId
-                        )
-                        userRepository.updateLastSyncedAt(endUserId, Instant.now().toString())
-                        Log.d("Upload", "$type uploaded successfully")
-                    } else {
-                        Log.e("Upload", "$type upload failed: ${response.errorBody()?.string()}")
-                    }
+                    // 공통 업로더 호출
+                    HealthDataUploader.uploadData(
+                        auth = authorizationHeader,
+                        data = requests,
+                        strategy = strategy,
+                        onMarkUploaded = { uploaded ->
+                            healthDataRepository.markAsUploaded(
+                                uploaded.map { it.dataId },
+                                System.currentTimeMillis(),
+                                userId
+                            )
+                            userRepository.updateLastSyncedAt(endUserId, Instant.now().toString())
+                        }
+                    )
+                    Log.d("uploadData", "uploadData end")
                 }
 
             }
@@ -176,9 +179,9 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
     suspend fun handleStepData(records: List<StepsRecord>, userId: Long) {
 
         records.forEach { record ->
-            val countData = mapOf("count" to record.count)
-            val jsonAdapter = moshi.adapter(Map::class.java)
-            val jsonData = jsonAdapter.toJson(countData)
+            val jsonAdapter = moshi.adapter(StepData::class.java)
+            val stepData = StepData(count = record.count.toInt())
+            val jsonData = jsonAdapter.toJson(stepData)
 
             // 중복 체크
             val exists = healthDataRepository.checkIfExists(
@@ -201,14 +204,14 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
                     updatedAt = Instant.now().toEpochMilli(),
                     isUploaded = false
                 )
-                healthDataRepository.insertIfNew(record.metadata.id, entity.updatedAt, entity)
-                Log.d("candiyHC", "step entity insert success")
+                try{
+                    healthDataRepository.insertIfNew(record.metadata.id, entity.updatedAt, entity)
+                }catch (e: Exception) {
+                    Log.e("candiyHC", "Failed to insert STEP data: ${e.message}")
+                }
             }
-//            else {
-//                Log.d("candiyHC", "Duplicate step data skipped")
-//            }
         }
-        Log.d("candiyHC", "step entity insert success")
+        Log.d("candiyHC", "STEP entity inserted successfully into RoomDB")
     }
 
     suspend fun handleHeartRateData(
@@ -216,15 +219,15 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
         userId: Long
     ) {
         records.forEach { record ->
-            val heartRateData = mapOf(
-                "samples" to record.samples.map { sample ->
-                    mapOf(
-                        "time" to sample.time.toString(),
-                        "beatsPerMinute" to sample.beatsPerMinute
-                    )
-                }
-            )
-            val jsonAdapter = moshi.adapter(Map::class.java)
+            val samples = record.samples.map { sample ->
+                HeartRateSample(
+                    time = sample.time.toString(),
+                    beatsPerMinute = sample.beatsPerMinute
+                )
+            }
+            val heartRateData = HeartRateData(samples = samples)
+
+            val jsonAdapter = moshi.adapter(HeartRateData::class.java)
             val jsonData = jsonAdapter.toJson(heartRateData)
 
             // 중복 체크
@@ -248,13 +251,14 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
                     updatedAt = Instant.now().toEpochMilli(),
                     isUploaded = false
                 )
-                healthDataRepository.insertIfNew(record.metadata.id, entity.updatedAt, entity)
+                try{
+                    healthDataRepository.insertIfNew(record.metadata.id, entity.updatedAt, entity)
+                }catch (e: Exception) {
+                    Log.e("candiyHC", "Failed to insert HeartRate data: ${e.message}")
+                }
             }
-//            else {
-//                Log.d("candiyHC", "Duplicate step data skipped")
-//            }
         }
-        Log.d("candiyHC", "heartRate entity insert success")
+        Log.d("candiyHC", "HeartRate entity inserted successfully into RoomDB")
     }
 
 
@@ -286,13 +290,14 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
                     updatedAt = Instant.now().toEpochMilli(),
                     isUploaded = false
                 )
-                healthDataRepository.insertIfNew(record.metadata.id, entity.updatedAt, entity)
+                try{
+                    healthDataRepository.insertIfNew(record.metadata.id, entity.updatedAt, entity)
+                }catch (e: Exception) {
+                    Log.e("candiyHC", "Failed to insert OxygenSaturation data: ${e.message}")
+                }
             }
-//            else {
-//                Log.d("candiyHC", "Duplicate step data skipped")
-//            }
         }
-        Log.d("candiyHC", "OxygenSaturation entity insert success")
+        Log.d("candiyHC", "OxygenSaturation entity inserted successfully into RoomDB")
     }
 
     suspend fun handleSleepSessionData(
@@ -307,12 +312,9 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
                     "stage" to stage.stage
                 )
             }
-
-
             val totalSleep =
                 healthConnectManager.readResultSleepSession(record.startTime, record.endTime)
                     .toString()
-            Log.d("totalSleep", "totalSleep: $totalSleep")
 
             val countData = mapOf(
                 "sleep_duration_total" to totalSleep, // actual sleep time
@@ -345,12 +347,12 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
                     updatedAt = Instant.now().toEpochMilli(),
                     isUploaded = false
                 )
-                healthDataRepository.insertIfNew(record.metadata.id, entity.updatedAt, entity)
-            }
-//            else {
-//                Log.d("candiyHC", "Duplicate step data skipped")
-//            }
+                try{
+                    healthDataRepository.insertIfNew(record.metadata.id, entity.updatedAt, entity)
+                }catch (e: Exception) {
+                    Log.e("candiyHC", "Failed to insert Sleep data: ${e.message}")
+                }              }
         }
-        Log.d("candiyHC", "OxygenSaturation entity insert success")
+        Log.d("candiyHC", "Sleep entity inserted successfully into RoomDB")
     }
 }

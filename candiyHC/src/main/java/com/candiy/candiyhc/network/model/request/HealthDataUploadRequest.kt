@@ -5,7 +5,8 @@ import com.squareup.moshi.JsonClass
 @JsonClass(generateAdapter = true)
 data class HealthDataUploadRequest(
     val app: String,
-    val data: String,
+//    val data: String,
+    val data: Map<String, Any>,
     val start: String,
     val end: String? = null,
 
@@ -14,3 +15,4 @@ data class HealthDataUploadRequest(
 
     @Json(name = "data_id")val dataId: String
 )
+

@@ -51,21 +51,21 @@ class HealthConnectManager(val context: Context) {
         onResult(true)
     }
 
-    fun checkBluetoothPermission(context: Context, onPermissionGranted: () -> Unit) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-            ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED
-        ) {
-            // 권한이 없는 경우 권한 요청
-            ActivityCompat.requestPermissions(
-                context as Activity,
-                arrayOf(Manifest.permission.BLUETOOTH_CONNECT),
-                REQUEST_BLUETOOTH_PERMISSION
-            )
-        } else {
-            // 권한이 이미 있는 경우 바로 콜백 실행
-            onPermissionGranted()
-        }
-    }
+//    fun checkBluetoothPermission(context: Context, onPermissionGranted: () -> Unit) {
+//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+//            ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED
+//        ) {
+//            // 권한이 없는 경우 권한 요청
+//            ActivityCompat.requestPermissions(
+//                context as Activity,
+//                arrayOf(Manifest.permission.BLUETOOTH_CONNECT),
+//                REQUEST_BLUETOOTH_PERMISSION
+//            )
+//        } else {
+//            // 권한이 이미 있는 경우 바로 콜백 실행
+//            onPermissionGranted()
+//        }
+//    }
 
 
 
@@ -109,9 +109,6 @@ class HealthConnectManager(val context: Context) {
             recordType = OxygenSaturationRecord::class,
             timeRangeFilter = TimeRangeFilter.between(startTime, endTime)
         )
-
-        Log.d("OxygenSaturationRecord!!!!", "OxygenSaturationRecord: $request")
-
         return healthConnectClient.readRecords(request).records
     }
 
@@ -155,7 +152,7 @@ class HealthConnectManager(val context: Context) {
 
     fun syncHealthData(type: Connections, dataTypes: Set<DataTypes>, apiKey: String, endUserId: String, deviceManufacturer: String, deviceModel: String) {
         Log.d("candiyHC", "Starting real-time data streaming for type: $type with data types: $dataTypes")
-        val userManager = UserManager(ApiClient.getApiService(), context)
+        val userManager = UserManager(ApiClient.getApiService(context), context)
 
         // apiKey가 유효한지 먼저 확인
         if (!apiKey.isNullOrEmpty()) {

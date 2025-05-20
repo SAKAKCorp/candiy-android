@@ -37,4 +37,7 @@
 
     <uses-permission android:name="android.permission.health.CONNECT" />
 
+    <!-- AndroidManifest.xml -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+
 </manifest>

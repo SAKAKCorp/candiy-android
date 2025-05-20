@@ -63,6 +63,7 @@ class UserManager(
             Log.d("endUserId", "${endUserId}")
             val createUserRequest = CreateUserRequest(end_user_id = endUserId)
             val createUserResponse = apiService.createUser(createUserRequest)
+            Log.d("createUserResponse", "${createUserResponse}")
             if(createUserResponse.isSuccessful){
                 val body = createUserResponse.body()
                 if (body?.status == "success") {
@@ -118,7 +119,7 @@ class UserManager(
         val authHeader = "Basic $encoded"
 
         val response = apiService.getAccessToken(authHeader)
-        Log.d("token response", "${response.body()?.access_token}")
+        Log.d("token response", "${response.body()?.access_token}, res: ${response}")
 
         return if (response.isSuccessful) {
             response.body()?.access_token ?: throw Exception("Token not found in response")
