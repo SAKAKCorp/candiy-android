@@ -147,7 +147,7 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
                     }
 
                     // 공통 업로더 호출
-                    HealthDataUploader.uploadData(
+                    HealthDataUploader.uploadDataInChunks(
                         auth = authorizationHeader,
                         data = requests,
                         strategy = strategy,

@@ -14,22 +14,6 @@ object HealthDataUploader {
         api = ApiClient.getApiService(context)
     }
 
-    suspend fun <T> uploadData(
-        auth: String,
-        data: List<HealthDataUploadRequest>,
-        strategy: HealthDataUploadStrategy<T>,
-        onMarkUploaded: suspend (List<HealthDataUploadRequest>) -> Unit
-    ) {
-        val body = strategy.wrap(data)
-        val response = strategy.upload(auth, body)
-        if (response.isSuccessful) {
-            Log.d("Uploader", "${strategy.dataType} uploaded successfully")
-            onMarkUploaded(data)
-        } else {
-            Log.e("Uploader", "${strategy.dataType} upload failed: ${response.errorBody()?.string()}")
-        }
-    }
-
     suspend fun <T> uploadDataInChunks(
         auth: String,
         data: List<HealthDataUploadRequest>,
