@@ -1,18 +1,8 @@
 package com.candiy.candiyhc
 
-import android.Manifest
-import android.app.Activity
-import android.bluetooth.BluetoothDevice
-import android.bluetooth.BluetoothManager
 import android.content.Context
-import android.content.pm.PackageManager
-import android.os.Build
 import android.util.Log
-import androidx.annotation.RequiresPermission
-import androidx.appcompat.app.AppCompatActivity.BLUETOOTH_SERVICE
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
-import androidx.core.content.ContextCompat.getSystemService
+import androidx.compose.runtime.MutableState
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.request.ReadRecordsRequest
@@ -21,8 +11,13 @@ import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.OxygenSaturationRecord
 import androidx.health.connect.client.records.SleepSessionRecord
 import androidx.health.connect.client.request.AggregateRequest
+import androidx.lifecycle.LifecycleOwner
 import androidx.work.Data
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.candiy.candiyhc.data.di.AppContainer
 import com.candiy.candiyhc.data.enums.Connections
@@ -31,10 +26,10 @@ import com.candiy.candiyhc.network.ApiClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.Duration
 import java.util.concurrent.TimeUnit
-
 
 
 class HealthConnectManager(val context: Context) {
@@ -45,7 +40,8 @@ class HealthConnectManager(val context: Context) {
 
     // candiyHC 초기화 메소드
     fun initConnection(
-        onResult: (Boolean) -> Unit) {
+        onResult: (Boolean) -> Unit
+    ) {
         // TODO: 초기화 로직 추가
         Log.d("candiyHC", "Initializing candiyHC SDK")
         onResult(true)
@@ -66,7 +62,6 @@ class HealthConnectManager(val context: Context) {
 //            onPermissionGranted()
 //        }
 //    }
-
 
 
     // BLE 장치 스캔 시작
@@ -124,7 +119,7 @@ class HealthConnectManager(val context: Context) {
         return healthConnectClient.readRecords(request).records
     }
 
-    suspend fun readResultSleepSession(startTime: Instant, endTime: Instant): Duration?{
+    suspend fun readResultSleepSession(startTime: Instant, endTime: Instant): Duration? {
         val response = healthConnectClient.aggregate(
             AggregateRequest(
                 metrics = setOf(SleepSessionRecord.SLEEP_DURATION_TOTAL),
@@ -134,24 +129,99 @@ class HealthConnectManager(val context: Context) {
         // 전체 수면 시간 집계 값 가져오기
         return response[SleepSessionRecord.SLEEP_DURATION_TOTAL]
     }
-
-
-    fun startWork(dataTypes: Set<DataTypes>, token: String) {
-        Log.d("dataTypes", "$dataTypes")
+    fun observeWork(lifecycleOwner: LifecycleOwner, onStateChanged: (WorkInfo.State) -> Unit, onComplete: (Boolean) -> Unit) {
+        val workManager = WorkManager.getInstance(context)
+        workManager.getWorkInfosForUniqueWorkLiveData("HealthDataSyncWork")
+            .observe(lifecycleOwner) { workInfos ->
+                val workInfo = workInfos?.firstOrNull()
+                workInfo?.state?.let { state ->
+                    when (state) {
+                        WorkInfo.State.ENQUEUED, WorkInfo.State.RUNNING -> onStateChanged(WorkInfo.State.RUNNING)
+                        WorkInfo.State.SUCCEEDED -> {
+                            onStateChanged(WorkInfo.State.SUCCEEDED)
+                            onComplete(true)
+                        }
+                        WorkInfo.State.FAILED, WorkInfo.State.CANCELLED -> {
+                            onStateChanged(WorkInfo.State.FAILED)
+                            onComplete(false)
+                        }
+                        else -> {}
+                    }
+                }
+            }
+    }
+    fun startWork(
+        dataTypes: Set<DataTypes>,
+        token: String,
+        lifecycleOwner: LifecycleOwner,
+        onStateChanged: (WorkInfo.State) -> Unit,
+        onComplete: (Boolean) -> Unit
+    ) {
+        val workManager = WorkManager.getInstance(context)
         val inputData = Data.Builder()
             .putStringArray("data_types", dataTypes.map { it.name }.toTypedArray())
             .putString("token", token)
             .build()
 
-        val workRequest = PeriodicWorkRequestBuilder<HealthDataSyncWorker>(15, TimeUnit.MINUTES)
+        val oneTimeWorkRequest = OneTimeWorkRequestBuilder<HealthDataSyncWorker>()
             .setInputData(inputData)
             .build()
 
-        WorkManager.getInstance(context).enqueue(workRequest)
+        Log.d("startWork", "start")
+
+
+        workManager.enqueueUniqueWork(
+            "HealthDataSyncWork_OneTime",
+            ExistingWorkPolicy.KEEP,
+            oneTimeWorkRequest
+        )
+
+        // 작업 상태 관찰 (로딩 UI 업데이트용)
+        workManager.getWorkInfoByIdLiveData(oneTimeWorkRequest.id)
+            .observe(lifecycleOwner) { workInfo ->
+                workInfo?.let {
+                    onStateChanged(it.state)
+
+                    if (it.state == WorkInfo.State.SUCCEEDED) {
+                        Log.d("startWork", "WorkInfo SUCCEEDED")
+
+                        onComplete(true)
+                    } else if (it.state == WorkInfo.State.FAILED || it.state == WorkInfo.State.CANCELLED) {
+                        Log.d("startWork", "WorkInfo FAILED")
+
+                        onComplete(false)
+                    }
+                }
+            }
+
+        // 주기 작업 (백그라운드 15분마다)
+        val periodicWorkRequest = PeriodicWorkRequestBuilder<HealthDataSyncWorker>(15, TimeUnit.MINUTES)
+            .setInputData(inputData)
+            .build()
+
+        workManager.enqueueUniquePeriodicWork(
+            "HealthDataSyncWork_Periodic",
+            ExistingPeriodicWorkPolicy.KEEP,
+            periodicWorkRequest
+        )
     }
 
-    fun syncHealthData(type: Connections, dataTypes: Set<DataTypes>, apiKey: String, endUserId: String, deviceManufacturer: String, deviceModel: String) {
-        Log.d("candiyHC", "Starting real-time data streaming for type: $type with data types: $dataTypes")
+
+    fun syncHealthData(
+        type: Connections,
+        dataTypes: Set<DataTypes>,
+        apiKey: String,
+        endUserId: String,
+        deviceManufacturer: String,
+        deviceModel: String,
+        lifecycleOwner: LifecycleOwner,
+        onStateChanged: (WorkInfo.State) -> Unit,
+        onComplete: (Boolean) -> Unit
+    ) {
+        Log.d(
+            "candiyHC",
+            "Starting real-time data streaming for type: $type with data types: $dataTypes"
+        )
         val userManager = UserManager(ApiClient.getApiService(context), context)
 
         // apiKey가 유효한지 먼저 확인
@@ -170,7 +240,9 @@ class HealthConnectManager(val context: Context) {
                     Log.d("Token", "Fetched token: $token")
 
                     if (type == Connections.BLE) {
-                        startWork(dataTypes, token)
+                        withContext(Dispatchers.Main) {
+                            startWork(dataTypes, token, lifecycleOwner, onStateChanged, onComplete)
+                        }
                     } else {
                         TODO("ANT 연결 방식 아직 미구현")
                     }
@@ -188,7 +260,7 @@ class HealthConnectManager(val context: Context) {
 
     // 실시간 데이터 스트리밍 중지
     fun stopRealtime(type: Connections) {
-        Log.d("candiyHC","Stopping real-time data streaming for type: $type")
+        Log.d("candiyHC", "Stopping real-time data streaming for type: $type")
         TODO()
     }
 

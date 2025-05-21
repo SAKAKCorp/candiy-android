@@ -48,7 +48,7 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
         }
         val user = userRepository.getUserByEndUserIdAndDeviceModel(endUserId, deviceModel)
         val userId = user?.id
-        Log.d("user id??", "${userId}")
+        Log.d("user id", "${userId}")
         if (userId == null) {
             Log.e("HealthWorker", "userId is null, aborting work.")
             return Result.failure()
@@ -158,17 +158,24 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
                                 userId
                             )
                             userRepository.updateLastSyncedAt(endUserId, Instant.now().toString())
-                        }
+                        },
                     )
+
                     Log.d("uploadData", "uploadData end")
                 }
 
             }
+            Log.d("HealthWorker", "success")
+
             Result.success()
+
+
 
         } catch (e: Exception) {
             e.printStackTrace()
             // 오류 발생 시
+            Log.e("HealthWorker", "failure")
+
             Result.failure()
         }
 

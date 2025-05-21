@@ -64,8 +64,8 @@ class GzipRequestInterceptor(private val context: Context) : Interceptor {
                 val compressedBytes = buffer.readByteArray()
 
                 // 3. 로그 및 저장
-                Log.i("Interceptor!@", "Compressed request size: ${compressedBytes.size} bytes")
-                saveCompressedToFile(compressedBytes)  // 👈 파일 저장 추가
+                Log.i("Interceptor", "Compressed request size: ${compressedBytes.size} bytes")
+                saveCompressedToFile(compressedBytes) // 파일로 저장
 
                 // 4. 실제 요청에 전달
                 sink.write(compressedBytes)
