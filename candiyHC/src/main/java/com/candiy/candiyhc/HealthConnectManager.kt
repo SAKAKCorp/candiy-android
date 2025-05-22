@@ -129,27 +129,8 @@ class HealthConnectManager(val context: Context) {
         // 전체 수면 시간 집계 값 가져오기
         return response[SleepSessionRecord.SLEEP_DURATION_TOTAL]
     }
-    fun observeWork(lifecycleOwner: LifecycleOwner, onStateChanged: (WorkInfo.State) -> Unit, onComplete: (Boolean) -> Unit) {
-        val workManager = WorkManager.getInstance(context)
-        workManager.getWorkInfosForUniqueWorkLiveData("HealthDataSyncWork")
-            .observe(lifecycleOwner) { workInfos ->
-                val workInfo = workInfos?.firstOrNull()
-                workInfo?.state?.let { state ->
-                    when (state) {
-                        WorkInfo.State.ENQUEUED, WorkInfo.State.RUNNING -> onStateChanged(WorkInfo.State.RUNNING)
-                        WorkInfo.State.SUCCEEDED -> {
-                            onStateChanged(WorkInfo.State.SUCCEEDED)
-                            onComplete(true)
-                        }
-                        WorkInfo.State.FAILED, WorkInfo.State.CANCELLED -> {
-                            onStateChanged(WorkInfo.State.FAILED)
-                            onComplete(false)
-                        }
-                        else -> {}
-                    }
-                }
-            }
-    }
+
+
     fun startWork(
         dataTypes: Set<DataTypes>,
         token: String,
