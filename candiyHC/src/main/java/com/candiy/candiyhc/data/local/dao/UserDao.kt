@@ -3,6 +3,7 @@ package com.candiy.candiyhc.data.local.dao
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import com.candiy.candiyhc.data.local.entity.UserEntity
@@ -10,8 +11,8 @@ import com.candiy.candiyhc.data.local.entity.UserEntity
 @Dao
 interface UserDao {
 
-    @Insert
-    suspend fun insert(userEntity: UserEntity)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun insert(userEntity: UserEntity)
 
     @Update
     suspend fun update(userEntity: UserEntity)
@@ -27,5 +28,8 @@ interface UserDao {
 
     @Query("UPDATE user SET last_synced_at = :lastSyncedAt WHERE end_user_id = :endUserId")
     suspend fun updateLastSyncedAt(endUserId: String, lastSyncedAt: String)
+
+    @Query("SELECT * FROM user WHERE end_user_id = :endUserId AND device_model = :deviceModel LIMIT 1")
+    suspend fun getUserByEndUserIdAndDeviceModel(endUserId: String, deviceModel: String?): UserEntity?
 
 }

@@ -7,6 +7,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
 import com.candiy.candiyhc.data.local.entity.HealthDataEntity
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface HealthDataDao {
@@ -21,6 +22,9 @@ interface HealthDataDao {
 
     @Query("SELECT * FROM health_data WHERE metadata_id = :metadataId LIMIT 1")
     suspend fun getByMetadataId(metadataId: String): HealthDataEntity?
+
+    @Query("SELECT * FROM health_data WHERE user_id = :userId AND is_uploaded = 1 ORDER BY updated_at DESC")
+    fun getUploadedByUserId(userId: Long): Flow<List<HealthDataEntity>>
 
     @Transaction
     suspend fun insertIfNew(metadataId: String, newTimestamp: Long, entity: HealthDataEntity) {

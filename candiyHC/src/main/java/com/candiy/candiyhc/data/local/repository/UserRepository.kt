@@ -9,5 +9,6 @@ interface UserRepository {
     suspend fun getUserById(id: Long): UserEntity?
     suspend fun getUserByEndUserId(endUserId: String): UserEntity?
     suspend fun updateLastSyncedAt(endUserId: String, lastSyncedAt: String)
+    suspend fun getUserByEndUserIdAndDeviceModel(endUserId: String, deviceModel: String?): UserEntity?
 
 }
