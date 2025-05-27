@@ -12,6 +12,12 @@ class UserEntity(
     @ColumnInfo(name = "end_user_id")
     val endUserId: String,
 
+    @ColumnInfo(name = "device_manufacturer")
+    val deviceManufacturer: String? = null,
+
+    @ColumnInfo(name = "device_model")
+    val deviceModel: String? = null,
+
     @ColumnInfo(name = "last_synced_at")
     val lastSyncedAt: String? = null, // 마지막으로 동기화한 시간
 )

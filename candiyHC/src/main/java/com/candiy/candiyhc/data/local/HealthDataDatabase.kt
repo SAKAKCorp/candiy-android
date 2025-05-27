@@ -10,7 +10,7 @@ import com.candiy.candiyhc.data.local.dao.UserDao
 import com.candiy.candiyhc.data.local.entity.HealthDataEntity
 import com.candiy.candiyhc.data.local.entity.UserEntity
 
-@Database(entities = [HealthDataEntity::class, UserEntity::class], version = 3, exportSchema = false)
+@Database(entities = [HealthDataEntity::class, UserEntity::class], version = 4, exportSchema = false)
 abstract class HealthDataDatabase : RoomDatabase() {
 
     abstract fun healthDataDao(): HealthDataDao

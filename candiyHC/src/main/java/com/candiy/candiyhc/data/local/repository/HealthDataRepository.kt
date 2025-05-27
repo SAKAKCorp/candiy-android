@@ -1,6 +1,7 @@
 package com.candiy.candiyhc.data.local.repository
 
 import com.candiy.candiyhc.data.local.entity.HealthDataEntity
+import kotlinx.coroutines.flow.Flow
 
 
 interface HealthDataRepository {
@@ -21,5 +22,7 @@ interface HealthDataRepository {
     suspend fun getLastUploadedAt(userId: Long): Long?
 
     suspend fun checkIfExists(userId: Long, app: String, metadataId: String, lastModifiedTime: String): Boolean
+
+    fun getUploadedByUserId(userId: Long): Flow<List<HealthDataEntity>>
 
 }

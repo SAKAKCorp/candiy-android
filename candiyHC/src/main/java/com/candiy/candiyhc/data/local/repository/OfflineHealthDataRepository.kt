@@ -2,6 +2,7 @@ package com.candiy.candiyhc.data.local.repository
 
 import com.candiy.candiyhc.data.local.dao.HealthDataDao
 import com.candiy.candiyhc.data.local.entity.HealthDataEntity
+import kotlinx.coroutines.flow.Flow
 
 class OfflineHealthDataRepository(private val healthDataDao: HealthDataDao) : HealthDataRepository {
     override suspend fun insertHealthData(healthDataEntity: HealthDataEntity) = healthDataDao.insert(healthDataEntity)
@@ -35,5 +36,10 @@ class OfflineHealthDataRepository(private val healthDataDao: HealthDataDao) : He
         )
         return existingData != null
     }
+
+    override fun getUploadedByUserId(userId: Long): Flow<List<HealthDataEntity>> {
+        return healthDataDao.getUploadedByUserId(userId)
+    }
+
 
 }
