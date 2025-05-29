@@ -1,0 +1,78 @@
+name: Notify Slack on PR
+on:
+  pull_request:
+    types: [opened, reopened, edited]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3 # GitHub 저장소를 체크아웃하는 액션을 사용합니다
+
+      - name: Get Reviewers List # 리뷰어 목록을 가져오는 단계입니다.
+        id: reviewers # 이 단계의 ID를 설정합니다.
+        uses: actions/github-script@v6 # GitHub 스크립트 액션을 사용합니다.
+        with: # 입력으로 전달할 값들을 설정합니다.
+          script: | # 리뷰어 목록을 가져오는 JavaScript 스크립트입니다.
+            const fs = require('fs');
+            const workers = JSON.parse(fs.readFileSync('.github/workflows/users.json'));
+            const requestedReviewers = context.payload.pull_request.requested_reviewers;
+            if (!requestedReviewers || requestedReviewers.length === 0) {
+              return "리뷰어를 지정하지 않았어요.";
+            }
+            const reviewers = requestedReviewers.map((user) => {
+              const login = user.login;
+              const mappedValue = workers[login];
+              return mappedValue ? `<@${mappedValue}>` : `No mapping found for ${login}`;
+            });
+            return `리뷰어: ${reviewers.join(', ')}`;
+          result-encoding: string # 결과를 문자열로 인코딩합니다.
+
+      - name: Get Author Slack ID # PR 작성자의 Slack ID를 가져오는 단계입니다.
+        id: author # 이 단계의 ID를 설정합니다.
+        uses: actions/github-script@v6 # GitHub 스크립트 액션을 사용합니다.
+        with: # 입력으로 전달할 값들을 설정합니다.
+          script: | # PR 작성자의 Slack ID를 가져오는 JavaScript 스크립트입니다.
+            const fs = require('fs'); // 파일 시스템 모듈을 가져옵니다.
+            const workers = JSON.parse(fs.readFileSync('.github/workflows/users.json')); // .github/workflows/users.json 파일을 읽어와 JSON 형식으로 파싱합니다.
+            const authorLogin = context.payload.pull_request.user.login; // PR 작성자의 로그인 ID를 가져옵니다.
+            const authorSlackId = workers[authorLogin]; // 작성자의 로그인 ID를 키로하여 .github/workflows/user.json 파일에서 해당하는 값(슬랙 멘션 ID)을 가져옵니다.
+            return authorSlackId ? `<@${authorSlackId}>` : `No mapping found for ${authorLogin}`; // 만약 슬랙 멘션 ID가 존재하면 슬랙 멘션 문자열을 반환하고, 그렇지 않으면 'No mapping found for'와 작성자의 로그인 ID를 포함한 문자열을 반환합니다.
+          result-encoding: string # 결과를 문자열로 인코딩합니다.
+
+      - name: Send message to Slack
+        uses: slackapi/slack-github-action@v2.0.0
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          payload: |
+            channel: ${{ secrets.SLACK_CHANNEL_ID }}
+            icon_emoji: ":meow_awauu:"
+            blocks:
+              - type: "header"
+                text:
+                  type: "plain_text"
+                  text: "📁 ${{
+                    github.event.repository.name
+                  }}"
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: ":sparkles: *${{ github.event.pull_request.title }}*"
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: "작성자: ${{ steps.author.outputs.result }}"
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: "${{ steps.reviewers.outputs.result }}"
+              - type: "actions"
+                elements:
+                  - type: "button"
+                    text:
+                      type: "plain_text"
+                      text: "PR 바로가기 🚀"
+                    url: "${{ github.event.pull_request.html_url }}"
+                    style: "primary"
+              - type: "divider"
