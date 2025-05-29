@@ -13,6 +13,8 @@ import com.candiy.candiyhc.data.enums.DataTypes
 import com.candiy.candiyhc.data.local.entity.HealthDataEntity
 import com.candiy.candiyhc.data.local.model.HeartRateData
 import com.candiy.candiyhc.data.local.model.HeartRateSample
+import com.candiy.candiyhc.data.local.model.OxygenSaturationData
+import com.candiy.candiyhc.data.local.model.SleepData
 import com.candiy.candiyhc.data.local.model.StepData
 import com.candiy.candiyhc.network.model.request.HealthDataUploadRequest
 import com.candiy.candiyhc.network.ApiClient
@@ -104,7 +106,7 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
             val lastSyncedAt = user.lastSyncedAt
             val pendingData = healthDataRepository.getPendingUploadData(lastSyncedAt, userId)
 
-            Log.d("HealthWorker", "lastSyncedAt: ${lastSyncedAt}, pendingData: ${pendingData}")
+            Log.d("HealthWorker", "lastSyncedAt: ${lastSyncedAt}, 동기화 할 데이터(pendingData): ${pendingData}")
 
             if (pendingData.isNotEmpty()) {
                 val authorizationHeader = "Bearer $token"
@@ -112,14 +114,40 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
                 for (type in dataTypes) {
                     val filteredData =
                         pendingData.filter { DataTypes.valueOf(it.type.uppercase()) == type }
-                    val type2 = Types.newParameterizedType(
-                        Map::class.java,
-                        String::class.java,
-                        Any::class.java
-                    )
-                    val jsonAdapter: JsonAdapter<Map<String, Any>> = moshi.adapter(type2)
-                    val requests = filteredData.map {
-                        val parsedData: Map<String, Any> = jsonAdapter.fromJson(it.data) ?: emptyMap()
+
+                    // 서버에 전송할 데이터
+                    val requests = filteredData.mapNotNull {
+                        val parsedData: Map<String, Any> = when (type) {
+                            DataTypes.STEPS -> {
+                                val stepData = moshi.adapter(StepData::class.java).fromJson(it.data)
+                                mapOf("count" to (stepData?.count ?: return@mapNotNull null))
+                            }
+                            DataTypes.HEART_RATE -> {
+                                val hrData =
+                                    moshi.adapter(HeartRateData::class.java).fromJson(it.data)
+                                mapOf("samples" to (hrData?.samples ?: return@mapNotNull null))
+                            }
+                            DataTypes.SLEEP -> {
+                                val sleepData =
+                                    moshi.adapter(SleepData::class.java).fromJson(it.data)
+                                mapOf(
+                                    "sleep_duration_total" to (sleepData?.sleepDurationTotal
+                                        ?: return@mapNotNull null),
+                                    "stages" to (sleepData.stages),
+                                    "notes" to sleepData.notes,
+                                    "title" to sleepData.title
+                                )
+                            }
+                            DataTypes.OXYGEN_SATURATION -> {
+                                val oxygenData = moshi.adapter(OxygenSaturationData::class.java)
+                                    .fromJson(it.data)
+                                mapOf(
+                                    "percentage" to (oxygenData?.percentage
+                                        ?: return@mapNotNull null)
+                                )
+                            }
+                            else -> return@mapNotNull null
+                        }
 
                         HealthDataUploadRequest(
                             app = it.app,
@@ -184,6 +212,7 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
     // TODO: 리팩토링 필요(공통 코드 많음)
     // 데이터 타입에 맞게 처리하는 함수
     suspend fun handleStepData(records: List<StepsRecord>, userId: Long) {
+        var insertCount = 0
 
         records.forEach { record ->
             val jsonAdapter = moshi.adapter(StepData::class.java)
@@ -211,20 +240,23 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
                     updatedAt = Instant.now().toEpochMilli(),
                     isUploaded = false
                 )
-                try{
+                try {
                     healthDataRepository.insertIfNew(record.metadata.id, entity.updatedAt, entity)
-                }catch (e: Exception) {
+                    insertCount++
+                } catch (e: Exception) {
                     Log.e("candiyHC", "Failed to insert STEP data: ${e.message}")
                 }
             }
         }
-        Log.d("candiyHC", "STEP entity inserted successfully into RoomDB")
+        Log.d("candiyHC", "Inserted $insertCount STEP records into RoomDB")
     }
 
     suspend fun handleHeartRateData(
         records: List<HeartRateRecord>,
         userId: Long
     ) {
+        var insertCount = 0
+
         records.forEach { record ->
             val samples = record.samples.map { sample ->
                 HeartRateSample(
@@ -258,14 +290,16 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
                     updatedAt = Instant.now().toEpochMilli(),
                     isUploaded = false
                 )
-                try{
+                try {
                     healthDataRepository.insertIfNew(record.metadata.id, entity.updatedAt, entity)
-                }catch (e: Exception) {
+                    insertCount++
+                } catch (e: Exception) {
                     Log.e("candiyHC", "Failed to insert HeartRate data: ${e.message}")
                 }
             }
         }
-        Log.d("candiyHC", "HeartRate entity inserted successfully into RoomDB")
+        Log.d("candiyHC", "Inserted $insertCount HeartRate records into RoomDB")
+
     }
 
 
@@ -273,6 +307,8 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
         records: List<OxygenSaturationRecord>,
         userId: Long
     ) {
+        var insertCount = 0
+
         records.forEach { record ->
             val countData = mapOf("percentage" to record.percentage.value)
             val jsonAdapter = moshi.adapter(Map::class.java)
@@ -297,20 +333,24 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
                     updatedAt = Instant.now().toEpochMilli(),
                     isUploaded = false
                 )
-                try{
+                try {
                     healthDataRepository.insertIfNew(record.metadata.id, entity.updatedAt, entity)
-                }catch (e: Exception) {
+                    insertCount++
+                } catch (e: Exception) {
                     Log.e("candiyHC", "Failed to insert OxygenSaturation data: ${e.message}")
                 }
             }
         }
-        Log.d("candiyHC", "OxygenSaturation entity inserted successfully into RoomDB")
+        Log.d("candiyHC", "Inserted $insertCount OxygenSaturation records into RoomDB")
+
     }
 
     suspend fun handleSleepSessionData(
         records: List<SleepSessionRecord>,
         userId: Long
     ) {
+        var insertCount = 0
+
         records.forEach { record ->
             val stagesList = record.stages.map { stage ->
                 mapOf(
@@ -354,12 +394,14 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
                     updatedAt = Instant.now().toEpochMilli(),
                     isUploaded = false
                 )
-                try{
+                try {
                     healthDataRepository.insertIfNew(record.metadata.id, entity.updatedAt, entity)
-                }catch (e: Exception) {
+                    insertCount++
+                } catch (e: Exception) {
                     Log.e("candiyHC", "Failed to insert Sleep data: ${e.message}")
-                }              }
+                }
+            }
         }
-        Log.d("candiyHC", "Sleep entity inserted successfully into RoomDB")
+        Log.d("candiyHC", "Inserted $insertCount Sleep records into RoomDB")
     }
 }
