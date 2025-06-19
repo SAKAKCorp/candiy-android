@@ -11,7 +11,7 @@ import com.candiy.candiyhc.data.local.repository.OfflineHealthDataRepository
 class AppContainer(context: Context) {
 
     // Database 인스턴스 생성
-    private val database = HealthDataDatabase.getDatabase(context)
+    private val database = HealthDataDatabase.getDatabase(context.applicationContext)
 
     // Repository 생성
     val itemsRepository: HealthDataRepository by lazy {

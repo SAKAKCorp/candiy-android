@@ -2,7 +2,6 @@ package com.candiy.candiyhc
 
 import android.content.Context
 import android.util.Log
-import androidx.compose.runtime.MutableState
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.request.ReadRecordsRequest
@@ -23,6 +22,7 @@ import com.candiy.candiyhc.data.di.AppContainer
 import com.candiy.candiyhc.data.enums.Connections
 import com.candiy.candiyhc.data.enums.DataTypes
 import com.candiy.candiyhc.network.ApiClient
+import com.candiy.candiyhc.permissions.HealthConnectPermissions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -36,7 +36,6 @@ class HealthConnectManager(val context: Context) {
     val healthConnectClient = HealthConnectClient.getOrCreate(context)
     private val REQUEST_BLUETOOTH_PERMISSION = 1001  // 권한 요청 코드
     val appContainer = AppContainer(context.applicationContext)
-    val userRepository = appContainer.userRepository
 
     // candiyHC 초기화 메소드
     fun initConnection(
@@ -46,23 +45,6 @@ class HealthConnectManager(val context: Context) {
         Log.d("candiyHC", "Initializing candiyHC SDK")
         onResult(true)
     }
-
-//    fun checkBluetoothPermission(context: Context, onPermissionGranted: () -> Unit) {
-//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-//            ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED
-//        ) {
-//            // 권한이 없는 경우 권한 요청
-//            ActivityCompat.requestPermissions(
-//                context as Activity,
-//                arrayOf(Manifest.permission.BLUETOOTH_CONNECT),
-//                REQUEST_BLUETOOTH_PERMISSION
-//            )
-//        } else {
-//            // 권한이 이미 있는 경우 바로 콜백 실행
-//            onPermissionGranted()
-//        }
-//    }
-
 
     // BLE 장치 스캔 시작
     fun startDeviceScan(type: Connections, onResult: (Boolean) -> Unit) {
@@ -131,17 +113,22 @@ class HealthConnectManager(val context: Context) {
     }
 
 
-    fun startWork(
+    suspend fun startWork(
         dataTypes: Set<DataTypes>,
         token: String,
         lifecycleOwner: LifecycleOwner,
         onStateChanged: (WorkInfo.State) -> Unit,
-        onComplete: (Boolean) -> Unit
+        onComplete: (Boolean) -> Unit,
+        notificationIconResId: Int,
     ) {
+
         val workManager = WorkManager.getInstance(context)
+        Log.d("HealthDataSyncWorker@@##", "notificationIconResId = $notificationIconResId")
+
         val inputData = Data.Builder()
             .putStringArray("data_types", dataTypes.map { it.name }.toTypedArray())
             .putString("token", token)
+            .putInt("notification_icon", notificationIconResId)  // 아이콘 리소스 전달
             .build()
 
         val oneTimeWorkRequest = OneTimeWorkRequestBuilder<HealthDataSyncWorker>()
@@ -175,16 +162,28 @@ class HealthConnectManager(val context: Context) {
                 }
             }
 
-        // 주기 작업 (백그라운드 15분마다)
-        val periodicWorkRequest = PeriodicWorkRequestBuilder<HealthDataSyncWorker>(15, TimeUnit.MINUTES)
-            .setInputData(inputData)
-            .build()
+        val requiredPermissions = HealthConnectPermissions.requiredPermissions
+        val grantedPermissions = healthConnectClient.permissionController.getGrantedPermissions()
 
-        workManager.enqueueUniquePeriodicWork(
-            "HealthDataSyncWork_Periodic",
-            ExistingPeriodicWorkPolicy.KEEP,
-            periodicWorkRequest
-        )
+        if (grantedPermissions.containsAll(requiredPermissions)) {
+            Log.d("주기작업 시작", "start")
+
+            val periodicWorkRequest = PeriodicWorkRequestBuilder<HealthDataSyncWorker>(15, TimeUnit.MINUTES)
+                .setInputData(inputData)
+                .build()
+
+            workManager.enqueueUniquePeriodicWork(
+                "HealthDataSyncWork_Periodic",
+                ExistingPeriodicWorkPolicy.KEEP,
+                periodicWorkRequest
+            )
+
+            Log.d("주기작업 성공", "end")
+
+        } else {
+            Log.w("startWork", "HealthConnect 권한 없음: 주기 작업 등록하지 않음")
+        }
+
     }
 
 
@@ -197,7 +196,8 @@ class HealthConnectManager(val context: Context) {
         deviceModel: String,
         lifecycleOwner: LifecycleOwner,
         onStateChanged: (WorkInfo.State) -> Unit,
-        onComplete: (Boolean) -> Unit
+        onComplete: (Boolean) -> Unit,
+        notificationIconResId: Int,
     ) {
         Log.d(
             "candiyHC",
@@ -222,7 +222,7 @@ class HealthConnectManager(val context: Context) {
 
                     if (type == Connections.BLE) {
                         withContext(Dispatchers.Main) {
-                            startWork(dataTypes, token, lifecycleOwner, onStateChanged, onComplete)
+                            startWork(dataTypes, token, lifecycleOwner, onStateChanged, onComplete, notificationIconResId)
                         }
                     } else {
                         TODO("ANT 연결 방식 아직 미구현")

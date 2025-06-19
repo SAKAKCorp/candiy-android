@@ -6,17 +6,6 @@
     <!--    걸음수 데이터에 접근할 수 있는 권한-->
     <uses-permission android:name="android.permission.health.READ_STEPS"/>
     <uses-permission android:name="android.permission.health.WRITE_STEPS"/>
-    <!--    전체소모칼로리 데이터에 접근할 수 있는 권한-->
-    <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED" />
-    <uses-permission android:name="android.permission.health.WRITE_TOTAL_CALORIES_BURNED" />
-    <!--    오늘 걸은 거리 데이터에 접근할 수 있는 권한-->
-    <uses-permission android:name="android.permission.health.READ_DISTANCE" />
-    <uses-permission android:name="android.permission.health.WRITE_DISTANCE" />
-    <!--    전체소모칼로리 데이터에 접근할 수 있는 권한-->
-    <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
-    <uses-permission android:name="android.permission.health.WRITE_ACTIVE_CALORIES_BURNED" />
-    <uses-permission android:name="android.permission.health.PERMISSION_READ_HEALTH_DATA_HISTORY" />
-    <uses-permission android:name="android.permission.health.READ_EXERCISE_ROUTESREAD_EXERCISE_ROUTES" />
     <!--    산소포화도 데이터에 접근할 수 있는 권한-->
     <uses-permission android:name="android.permission.health.READ_OXYGEN_SATURATION" />
     <uses-permission android:name="android.permission.health.WRITE_OXYGEN_SATURATION" />
@@ -39,5 +28,10 @@
 
     <!-- AndroidManifest.xml -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
 
 </manifest>
