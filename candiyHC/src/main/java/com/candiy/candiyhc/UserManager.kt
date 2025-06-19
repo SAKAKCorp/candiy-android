@@ -13,7 +13,7 @@ class UserManager(
     private val context: Context
 ) {
 
-    private val userDao = HealthDataDatabase.getDatabase(context).userDao()
+    private val userDao = HealthDataDatabase.getDatabase(context.applicationContext).userDao()
 
     private val prefs = context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE)
 

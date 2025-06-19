@@ -1,12 +1,19 @@
 package com.candiy.candiyhc
 
+import android.annotation.SuppressLint
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
+import android.content.pm.ServiceInfo
+import android.os.Build
 import android.util.Log
+import androidx.core.app.NotificationCompat
 import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.OxygenSaturationRecord
 import androidx.health.connect.client.records.SleepSessionRecord
 import androidx.health.connect.client.records.StepsRecord
 import androidx.work.CoroutineWorker
+import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
 import com.candiy.candiyhc.data.di.AppContainer
 import com.candiy.candiyhc.data.enums.DataTypes
@@ -38,6 +45,20 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
     private val apiService = ApiClient.getApiService(context)
 
     override suspend fun doWork(): Result {
+
+        val notificationIconResId = inputData.getInt("notification_icon", -1)
+
+        if (notificationIconResId == -1) {
+            throw IllegalArgumentException("notification_icon is required but not provided in inputData.")
+        }
+
+        val foregroundInfo = createForegroundInfo(notificationIconResId)
+        Log.d("HealthDataSyncWorker", "ForegroundInfo created with notificationId=${foregroundInfo.notificationId}")
+
+        setForeground(foregroundInfo)
+        Log.d("HealthDataSyncWorker", "setForeground called")
+
+
         // UserManager에서 endUserId 가져오기
         val userManager = UserManager(apiService, applicationContext)  // applicationContext 사용
         val endUserId = userManager.getEndUserId()
@@ -403,5 +424,62 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
             }
         }
         Log.d("candiyHC", "Inserted $insertCount Sleep records into RoomDB")
+    }
+
+    @SuppressLint("ServiceCast")
+    private fun createForegroundInfo(notificationIconResId: Int): ForegroundInfo {
+        val channelId = "health_sync_channel"
+        val notificationId = 123
+
+        val notificationManager =
+            applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val activeNotifications = notificationManager.activeNotifications
+
+        Log.d("HealthDataSyncWorker", "Active notifications count: ${activeNotifications.size}")
+        activeNotifications.forEach {
+            Log.d("HealthDataSyncWorker", "Notification: id=${it.id}, package=${it.packageName}")
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val channel = NotificationChannel(
+                channelId,
+                "Health Data Sync",
+                NotificationManager.IMPORTANCE_HIGH
+            )
+            notificationManager.createNotificationChannel(channel)
+        }
+
+        val notification = NotificationCompat.Builder(applicationContext, channelId)
+            .setContentTitle("Health Data Sync")
+            .setContentText("건강 데이터 동기화 중...")
+            .setSmallIcon(notificationIconResId)
+            .setOngoing(true)  // 포그라운드 서비스 알림은 true가 맞습니다
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setTicker("Syncing now...")
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .build()
+
+
+        // ForegroundInfo에 명시적으로 type 지정 (Android 14 이상 필수)
+        return when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> {
+                ForegroundInfo(
+                    notificationId,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                )
+            }
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> { // Android 10+
+                ForegroundInfo(
+                    notificationId,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MANIFEST // manifest에 정의된 타입 사용
+                )
+            }
+            else -> {
+                ForegroundInfo(notificationId, notification)
+            }
+        }
+
     }
 }
