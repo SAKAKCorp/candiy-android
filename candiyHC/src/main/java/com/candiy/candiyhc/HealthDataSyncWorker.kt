@@ -125,7 +125,11 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
             }
             // Delta Sync: `lastSyncedAt` 이후 데이터만 업로드
             val lastSyncedAt = user.lastSyncedAt
-            val pendingData = healthDataRepository.getPendingUploadData(lastSyncedAt, userId)
+            val pendingData = if (lastSyncedAt == null) {
+                healthDataRepository.getAllPendingUploadData(userId)
+            } else {
+                healthDataRepository.getPendingUploadDataAfterSync(lastSyncedAt, userId)
+            }
 
             Log.d("HealthWorker", "lastSyncedAt: ${lastSyncedAt}, 동기화 할 데이터(pendingData): ${pendingData}")
 
@@ -208,6 +212,14 @@ class HealthDataSyncWorker(context: Context, workerParams: WorkerParameters) :
                             )
                             userRepository.updateLastSyncedAt(endUserId, Instant.now().toString())
                         },
+                        onTokenExpired = suspend {
+                            try {
+                                userManager.refreshUserToken(endUserId)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                null
+                            }
+                        }
                     )
 
                     Log.d("uploadData", "uploadData end")

@@ -90,6 +90,43 @@ class UserManager(
         return token
     }
 
+    suspend fun refreshUserToken(endUserId: String): String? {
+        var uid: String? = null
+        var secret: String? = null
+
+        val response = apiService.getUserOauthInfo(endUserId)
+        if (response.isSuccessful) {
+            val body = response.body()
+            if (body?.status == "success") {
+                val userInfo = body.data
+                uid = userInfo?.uid
+                secret = userInfo?.secret
+            }
+        }
+
+        // 유저가 없으면 생성
+        if (uid == null || secret == null) {
+            val createUserRequest = CreateUserRequest(end_user_id = endUserId)
+            val createResponse = apiService.createUser(createUserRequest)
+            if (createResponse.isSuccessful) {
+                val body = createResponse.body()
+                if (body?.status == "success") {
+                    val userInfo = body.data
+                    uid = userInfo?.uid
+                    secret = userInfo?.secret
+                }
+            }
+        }
+
+        // uid, secret으로 로그인 시도
+        return if (uid != null && secret != null) {
+            fetchToken(uid, secret)
+        } else {
+            null
+        }
+    }
+
+
     private suspend fun saveUserToLocalDb(deviceManufacturer: String, deviceModel: String) {
         val endUserId = getEndUserId() ?: throw IllegalArgumentException("end_user_id is not set")
 

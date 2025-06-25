@@ -40,12 +40,16 @@ interface HealthDataDao {
 SELECT * FROM health_data
 WHERE is_uploaded = 0
 AND user_id = :userId
-AND (
-    :lastSyncedAt IS NULL
-    OR last_modified_time > :lastSyncedAt
-)
+AND last_modified_time > :lastSyncedAt
 """)
-    suspend fun getPendingUploadData(lastSyncedAt: String?, userId: Long): List<HealthDataEntity>
+    suspend fun getPendingUploadDataAfterSync(lastSyncedAt: String?, userId: Long): List<HealthDataEntity>
+
+    @Query("""
+SELECT * FROM health_data
+WHERE is_uploaded = 0
+AND user_id = :userId
+""")
+    suspend fun getAllPendingUploadData(userId: Long): List<HealthDataEntity>
 
     @Query("""
 UPDATE health_data 
