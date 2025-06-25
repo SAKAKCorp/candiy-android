@@ -15,7 +15,9 @@ interface HealthDataRepository {
 
     suspend fun getHealthDataByMetadataId(metadataId: String): HealthDataEntity?
 
-    suspend fun getPendingUploadData(lastSyncedAt: String?, userId: Long): List<HealthDataEntity>
+    suspend fun getPendingUploadDataAfterSync(lastSyncedAt: String?, userId: Long): List<HealthDataEntity>
+
+    suspend fun getAllPendingUploadData(userId: Long): List<HealthDataEntity>
 
     suspend fun markAsUploaded(metadataIds: List<String>, uploadTime: Long, userId: Long)
 

@@ -16,7 +16,9 @@ class OfflineHealthDataRepository(private val healthDataDao: HealthDataDao) : He
     override suspend fun getHealthDataByMetadataId(metadataId: String) = healthDataDao.getByMetadataId(metadataId)
 
 
-    override suspend fun getPendingUploadData(lastSyncedAt: String?, userId: Long) = healthDataDao.getPendingUploadData(lastSyncedAt, userId)
+    override suspend fun getPendingUploadDataAfterSync(lastSyncedAt: String?, userId: Long) = healthDataDao.getPendingUploadDataAfterSync(lastSyncedAt, userId)
+
+    override suspend fun getAllPendingUploadData(userId: Long) = healthDataDao.getAllPendingUploadData(userId)
 
     override suspend fun markAsUploaded(metadataIds: List<String>, uploadTime: Long, userId: Long) = healthDataDao.markAsUploaded(metadataIds, uploadTime, userId)
 
