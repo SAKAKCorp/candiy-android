@@ -38,11 +38,13 @@ android {
         kotlinCompilerExtensionVersion = "1.4.0"
     }
     packagingOptions {
-        exclude("META-INF/INDEX.LIST")
-        exclude("META-INF/DEPENDENCIES")
-        exclude("META-INF/io.netty.versions.properties")
-
-
+        resources {
+            excludes += setOf(
+                "META-INF/INDEX.LIST",
+                "META-INF/DEPENDENCIES",
+                "META-INF/io.netty.versions.properties"
+            )
+        }
     }
 
     kotlinOptions {
@@ -76,7 +78,7 @@ dependencies {
     implementation(libs.timber)
 
     // 헬스커넥트 API
-    implementation("androidx.health.connect:connect-client:1.1.0-beta01")
+    implementation("androidx.health.connect:connect-client:1.1.0")
     // Retrofit (서버 통신용)
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
 //    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
@@ -84,10 +86,10 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-moshi:2.9.0")  // Retrofit과 통합하기 위한 Moshi 컨버터
 
     // room
-    implementation("androidx.room:room-runtime:2.6.1")
-    implementation("androidx.room:room-ktx:2.6.1")
-    implementation("androidx.room:room-testing:2.6.1")
-    kapt("androidx.room:room-compiler:2.6.1")
+    implementation("androidx.room:room-runtime:2.8.4")
+    implementation("androidx.room:room-ktx:2.8.4")
+    implementation("androidx.room:room-testing:2.8.4")
+    kapt("androidx.room:room-compiler:2.8.4")
 
     // android debug db viewer
     debugImplementation("com.github.amitshekhariitbhu.Android-Debug-Database:debug-db:1.0.7")

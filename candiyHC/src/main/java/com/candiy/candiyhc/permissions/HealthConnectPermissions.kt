@@ -11,6 +11,6 @@ object HealthConnectPermissions {
         HealthPermission.getReadPermission(HeartRateRecord::class),
         HealthPermission.getReadPermission(StepsRecord::class),
         HealthPermission.getReadPermission(OxygenSaturationRecord::class),
-        HealthPermission.getReadPermission(SleepSessionRecord::class)
+        HealthPermission.getReadPermission(SleepSessionRecord::class),
     )
 }

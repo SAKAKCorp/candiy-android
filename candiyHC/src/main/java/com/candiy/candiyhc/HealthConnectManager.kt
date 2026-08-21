@@ -18,7 +18,6 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
-import com.candiy.candiyhc.data.di.AppContainer
 import com.candiy.candiyhc.data.enums.Connections
 import com.candiy.candiyhc.data.enums.DataTypes
 import com.candiy.candiyhc.network.ApiClient
@@ -34,8 +33,6 @@ import java.util.concurrent.TimeUnit
 
 class HealthConnectManager(val context: Context) {
     val healthConnectClient = HealthConnectClient.getOrCreate(context)
-    private val REQUEST_BLUETOOTH_PERMISSION = 1001  // 권한 요청 코드
-    val appContainer = AppContainer(context.applicationContext)
 
     // candiyHC 초기화 메소드
     fun initConnection(
@@ -56,7 +53,7 @@ class HealthConnectManager(val context: Context) {
     // 심박수 데이터 읽는 함수
     suspend fun readHeartRates(): List<HeartRateRecord> {
         val endTime = Instant.now()
-        val startTime = endTime.minus(Duration.ofDays(30))
+        val startTime = endTime - Duration.ofDays(30)
 
         val request = ReadRecordsRequest(
             recordType = HeartRateRecord::class,
@@ -206,7 +203,7 @@ class HealthConnectManager(val context: Context) {
         val userManager = UserManager(ApiClient.getApiService(context), context)
 
         // apiKey가 유효한지 먼저 확인
-        if (!apiKey.isNullOrEmpty()) {
+        if (apiKey.isNotEmpty()) {
             CoroutineScope(Dispatchers.IO).launch {
                 // apiKey가 유효함
                 Log.d("API Key", "API Key is valid")
@@ -217,7 +214,7 @@ class HealthConnectManager(val context: Context) {
                     userManager.setDeviceModel(deviceModel)
 
                     // token을 가져와서 작업 시작
-                    val token = userManager.getOrCreateUserToken(deviceManufacturer).toString()
+                    val token = userManager.getOrCreateUserToken(deviceManufacturer)
                     Log.d("Token", "Fetched token: $token")
 
                     if (type == Connections.BLE) {

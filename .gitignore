@@ -12,3 +12,9 @@ local.properties
 # 로그 파일
 *.log
 candiyHC/.gradle/
+
+# 기기에서 내보낸 개인 건강 기록 — 커밋 금지
+/exports/
+
+# 삼성헬스 SDK 디버그 덤프 — 실제 건강 기록 포함, 커밋 금지
+/shd-debug-output/

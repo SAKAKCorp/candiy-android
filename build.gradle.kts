@@ -13,6 +13,6 @@ buildscript {
     }
 
     dependencies {
-        classpath("com.android.tools.build:gradle:7.4.0")  // 최신 Gradle 버전 사용
+        classpath("com.android.tools.build:gradle:9.2.1")  // 최신 Gradle 버전 사용
     }
 }
